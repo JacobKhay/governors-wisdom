@@ -2,6 +2,7 @@
 title: "Wisdom and Governors"
 execute: 
   echo: false
+  warning: false
 ---
 
 ```{r}
@@ -24,32 +25,113 @@ Response: https://erikgahner.dk/2020/a-response-to-andrew-gelman/
 
 1) Imagine you work for a life insurer, and want to forecast how long a newly elected Senator might live based on their age, party, and other variables. 
 
-2) Imagine you are a researcher. You want to know if winning candidates live longer. 
+Predictive Model. Units: 
+
+2) Imagine you are a researcher. You want to know if winning candidates live longer.
 
 ### Data
 
 For this assignment, we will use the `governors` dataset, which contains information on U.S. gubernatorial candidates and their election outcomes. This dataset comes from published research and is available in the `primer.data` package.
 
 * Explore the data. What is the outcome variable? How is it distributed?
+Outcome variable: lived_after
 
+```{r}
+# Load broom for tidy model output
+library(broom)
 
+# Fit the linear regression model
+fit <- lm(lived_after ~ status + election_age + party + sex + region, data = governors)
+
+# Get tidy model summary with confidence intervals
+tidy_fit <- tidy(fit, conf.int = TRUE)
+
+# View the result
+tidy_fit
+
+```
 
 ### Preceptor Table
 
 What sorts of questions are we trying to answer?
 
+Given a candidate’s age at election, party affiliation, sex, and region, how many years do we expect them to live after the election?
+
 In order to build the Preceptor Table, we need to know: Is the model causal or predictive? What are units? What are the outcomes? What are the covariates? What are the treatments? Describe the mathematical Structure of the model.
 
+Predictive — the goal is to forecast post-election lifespan using candidate attributes. Each row represents one gubernatorial candidate in a U.S. state election. The outcome is lived_after, the number of years the candidate lived after their election. Covariates include election_age, party, sex, region, year, status, and win_margin. There is no treatment, since the focus is on prediction, not causal inference. The model uses a linear regression structure to estimate post-election lifespan as a function of these covariates, enabling forecasts for future candidates based on their characteristics.
 
+
+$$
+\widehat{\text{lived\_after}} = 56.9 + 5.31 \cdot \text{Incumbent} - 0.686 \cdot \text{ElectionAge} + 1.55 \cdot \text{Republican} - 4.92 \cdot \text{ThirdParty} + 0.217 \cdot \text{Male} - 0.148 \cdot \text{Northeast} + 1.02 \cdot \text{South} + 1.39 \cdot \text{West}
+$$
 
 ### Population Table 
 
 
 Describe the Population Table in your own words—what does each row represent in this context? Then, for each of the four key assumptions (validity, stability, representativeness, and unconfoundedness), provide both a definition in your own words and one specific counter-example for each assumption. 
 
+Each row in the Population Table represents a single gubernatorial candidate who ran in a U.S. state election between 1789 and 2020. For each candidate, the dataset records demographic information (e.g., age at election, sex, party, region), election details (e.g., status, vote margin), and post-election lifespan (lived_after). 
+
+
+Validity: 
+Definition: The data accurately reflects the real-world outcome and predictors. Variables are correctly measured and coded.
+
+Counter-example: If the status variable misclassifies some losing candidates as winners (due to bad records or typos), any estimates involving status will be invalid.
+
+Stability:
+Definition: The relationship between predictors and outcomes would remain the same if the model were applied at a different time or place.
+
+Counter-example: If medical technology drastically improved in recent decades, candidates elected in the 2000s might live longer after elections than those in the 1800s — even if they share the same characteristics — violating stability.
+
+Representativeness
+Definition: The sample of candidates in the dataset is similar to the broader group we care about (e.g., future candidates, all political leaders, or all older adults).
+
+Counter-example: If the dataset only includes candidates from highly contested races or southern states, it might not represent the broader population of governors or politicians.
+
+Unconfoundedness:
+Definition: All variables that affect both the treatment (winning) and the outcome (lifespan) are observed and included in the model.
+
+Counter-example: If healthier candidates are more likely to win and live longer — but health is not measured in the data — then the estimated effect of winning will be biased due to confounding.
 
 
 ### Modeling 
 
 The outcome variable in this study is `death_age`, which is the age each political candidate died. What kind of regression model should you use to predict or explain death_age? Explain your choice based on what kind of variable `death_age` is?
 
+
+```{r}
+#| label: death-age-model
+#| message: false
+#| warning: false
+
+# Load libraries
+library(tidyverse)
+library(easystats)
+
+# Remove rows with missing values in model variables
+governors_clean <- governors %>%
+  drop_na(death_age, status, election_age, party, sex, region)
+
+# Fit the model on the cleaned data
+model <- lm(death_age ~ status + election_age + party + sex + region, data = governors_clean)
+
+# Display model parameters with CIs
+model_parameters(model)
+
+# Display model fit stats
+model_performance(model)
+
+# Predict fitted values and prediction intervals
+prediction_data <- as_tibble(predict(model, interval = "prediction"))
+
+# Rename columns
+colnames(prediction_data) <- c(".fitted", ".lower", ".upper")
+
+# Combine predictions with cleaned dataset
+governors_with_preds <- bind_cols(governors_clean, prediction_data)
+
+# Show predicted vs actual values
+head(governors_with_preds %>% select(death_age, .fitted, .lower, .upper))
+
+```
